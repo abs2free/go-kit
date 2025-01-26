@@ -157,6 +157,10 @@ func WithColorOutput(enabled bool) Option {
 	}
 }
 
+func NewWithCore(core ...CoreBuilder) (*zap.SugaredLogger, error) {
+	return new(core...)
+}
+
 func new(builders ...CoreBuilder) (*zap.SugaredLogger, error) {
 	cores := make([]zapcore.Core, 0, len(builders))
 

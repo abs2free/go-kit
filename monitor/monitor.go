@@ -54,6 +54,7 @@ func Monitor(cancel context.CancelFunc, addr string, log *zap.SugaredLogger) {
 			log.Infof("listen has a err:%v", err)
 			cancel()
 		}
+		log.Infoln("visit :%s ", "http://127.0.0.1:6060/debug/pprof/")
 	}()
 }
 
