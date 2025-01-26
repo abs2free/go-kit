@@ -20,7 +20,7 @@ func TestLoggerWithFileAndConsoleCore(t *testing.T) {
 		WithLogLevel(zap.DebugLevel),
 	)
 
-	logger, err := New(fileCore, consoleCore)
+	logger, err := new(fileCore, consoleCore)
 	if err != nil {
 		t.Fatalf("Failed to initialize logger: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestLoggerWithFileCoreOnly(t *testing.T) {
 		WithLogLevel(zap.WarnLevel),
 	)
 
-	logger, err := New(fileCore, nil)
+	logger, err := new(fileCore, nil)
 	if err != nil {
 		t.Fatalf("Failed to initialize logger: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestLoggerWithConsoleCoreOnly(t *testing.T) {
 		WithLogLevel(zap.DebugLevel),
 	)
 
-	logger, err := New(nil, consoleCore)
+	logger, err := new(nil, consoleCore)
 	if err != nil {
 		t.Fatalf("Failed to initialize logger: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestLoggerWithConsoleCoreOnly(t *testing.T) {
 
 // 测试无任何核心配置的场景（应返回错误）
 func TestLoggerWithNoCore(t *testing.T) {
-	logger, err := New(nil, nil)
+	logger, err := new(nil, nil)
 	if err == nil {
 		t.Fatalf("Expected error when initializing logger with no cores, got nil")
 	}

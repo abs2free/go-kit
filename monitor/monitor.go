@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
@@ -34,7 +35,7 @@ func MonitorByPromethues(addr string, log *zap.SugaredLogger) {
 func Monitor(cancel context.CancelFunc, addr string, log *zap.SugaredLogger) {
 	// 监测
 	go func() {
-		ticker := time.NewTicker(time.Second * 5)
+		ticker := time.NewTicker(time.Second * 10)
 		var mem runtime.MemStats
 
 		for {
@@ -56,7 +57,7 @@ func Monitor(cancel context.CancelFunc, addr string, log *zap.SugaredLogger) {
 	}()
 }
 
-func signalCheck(cancel context.CancelFunc) {
+func SignalCheck(cancel context.CancelFunc) {
 	// 信号量监控
 	sg := make(chan os.Signal, 1)
 	// Trigger graceful shutdown on SIGINT or SIGTERM.

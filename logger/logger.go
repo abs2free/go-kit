@@ -14,23 +14,26 @@ var Logger *zap.SugaredLogger
 
 // LoggerConfig 日志配置
 type LoggerConfig struct {
-	Encoder zapcore.EncoderConfig
-	Rotate  lumberjack.Logger
-	Level   zapcore.Level
+	Encoder  zapcore.EncoderConfig
+	Rotate   lumberjack.Logger
+	Level    zapcore.Level
+	FilePath string // 添加文件路径配置
 }
 
 // 默认日志配置
 var DefaultConfig = &LoggerConfig{
-	Level: zap.InfoLevel,
+	Level:    zap.InfoLevel,
+	FilePath: "logs/zap.log", // 设置默认日志路径
 	Rotate: lumberjack.Logger{
 		MaxSize:    20,
 		MaxAge:     30,
 		MaxBackups: 50,
 		Compress:   false,
+		Filename:   "logs/zap.log", // 设置日志文件路径
 	},
 	Encoder: zapcore.EncoderConfig{
 		LevelKey:       "level",
-		NameKey:        "log/zap.log",
+		NameKey:        "logs/zap.log",
 		TimeKey:        "time",
 		MessageKey:     "msg",
 		CallerKey:      "caller",
@@ -55,6 +58,8 @@ func WithLogLevel(level zapcore.Level) Option {
 
 func WithLogFilePath(filePath string) Option {
 	return func(cfg *LoggerConfig) {
+		cfg.FilePath = filePath
+		cfg.Rotate.Filename = filePath
 		cfg.Encoder.NameKey = filePath
 	}
 }
@@ -83,6 +88,9 @@ func WithFileCore(options ...Option) CoreBuilder {
 		for _, opt := range options {
 			opt(&cfg)
 		}
+
+		cfg.Rotate.Filename = cfg.Encoder.NameKey
+
 		*core = zapcore.NewCore(
 			newJSONEncoder(&cfg),
 			newFileWriter(&cfg),
@@ -107,29 +115,58 @@ func WithConsoleCore(options ...Option) CoreBuilder {
 	}
 }
 
-// New 初始化日志
-func New(fileCoreBuilder, consoleCoreBuilder CoreBuilder) (*zap.SugaredLogger, error) {
-	var cores []zapcore.Core
+func new(builders ...CoreBuilder) (*zap.SugaredLogger, error) {
+	// 预分配切片容量
+	cores := make([]zapcore.Core, 0, len(builders))
 
-	if fileCoreBuilder != nil {
-		var fileCore zapcore.Core
-		fileCoreBuilder(&fileCore)
-		cores = append(cores, fileCore)
+	// 验证是否提供了构建器
+	if len(builders) == 0 {
+		return nil, fmt.Errorf("at least one core builder is required")
 	}
 
-	if consoleCoreBuilder != nil {
-		var consoleCore zapcore.Core
-		consoleCoreBuilder(&consoleCore)
-		cores = append(cores, consoleCore)
+	// 构建所有cores
+	for _, builder := range builders {
+		if builder == nil {
+			continue
+		}
+
+		var core zapcore.Core
+		builder(&core)
+
+		// 验证core是否正确初始化
+		if core == nil {
+			continue
+		}
+
+		cores = append(cores, core)
 	}
 
+	// 验证是否有有效的cores
 	if len(cores) == 0 {
-		return nil, fmt.Errorf("no log cores configured")
+		return nil, fmt.Errorf("no valid log cores were configured")
 	}
 
-	core := zapcore.NewTee(cores...)
-	logger := zap.New(core, zap.AddCaller())
+	// 配置选项
+	opts := []zap.Option{
+		zap.AddCaller(),
+		zap.AddCallerSkip(1),              // 跳过包装函数调用
+		zap.AddStacktrace(zap.ErrorLevel), // 错误时添加堆栈跟踪
+	}
+
+	// 创建logger
+	logger := zap.New(
+		zapcore.NewTee(cores...),
+		opts...,
+	)
+
+	// 确保之前的logger被正确清理
+	if Logger != nil {
+		_ = Logger.Sync()
+	}
+
+	// 设置全局logger
 	Logger = logger.Sugar()
+
 	return Logger, nil
 }
 
@@ -147,26 +184,32 @@ func newFileWriter(cfg *LoggerConfig) zapcore.WriteSyncer {
 	return zapcore.AddSync(writer)
 }
 
-func main() {
+func New(level zapcore.Level) (*zap.SugaredLogger, error) {
+	// 确保日志目录存在
+	logDir := "logs"
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create log directory: %v", err)
+	}
+
 	// 配置 fileCore
 	fileCore := WithFileCore(
-		WithLogFilePath("test_logs/test.log"),
 		WithRotateSettings(10, 7, true),
-		WithLogLevel(zap.InfoLevel),
+		WithLogLevel(level),
 	)
 
 	// 配置 consoleCore
 	consoleCore := WithConsoleCore(
-		WithLogLevel(zap.DebugLevel),
+		WithLogLevel(level),
 	)
 
 	// 初始化日志
-	logger, err := New(fileCore, consoleCore)
+	logger, err := new(fileCore, consoleCore)
 	if err != nil {
 		fmt.Printf("Failed to initialize logger: %v\n", err)
-		return
+		return nil, err
 	}
 
 	logger.Info("Logger initialized with fileCore and consoleCore!")
 
+	return logger, nil
 }
